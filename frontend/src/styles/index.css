@@ -14,6 +14,26 @@
   }
 }
 
+@keyframes analysisStatusPulse {
+  0%,
+  100% {
+    opacity: 0.48;
+  }
+
+  50% {
+    opacity: 0.9;
+  }
+}
+
 .analysis-status-line {
-  animation: analysisStatusIn 180ms ease-out both;
+  animation:
+    analysisStatusIn 180ms ease-out both,
+    analysisStatusPulse 1.35s ease-in-out 180ms infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .analysis-status-line {
+    animation: none;
+    opacity: 0.78;
+  }
 }
