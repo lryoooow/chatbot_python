@@ -10,9 +10,16 @@ import type { AnalysisStatus, ChatResponse, ChatTurn, Usage } from "../types";
 
 type SetTurns = Dispatch<SetStateAction<ChatTurn[]>>;
 
-export function createStreamHandlers(setTurns: SetTurns, assistantId: string): StreamHandlers {
+export function createStreamHandlers(
+  setTurns: SetTurns,
+  assistantId: string,
+  onConversationId?: (conversationId: string) => void,
+): StreamHandlers {
   return {
     onMeta: (data) => {
+      if (typeof data.conversation_id === "string") {
+        onConversationId?.(data.conversation_id);
+      }
       setTurns((prev) =>
         updateTurn(prev, assistantId, {
           model: typeof data.model === "string" ? data.model : undefined,
@@ -36,6 +43,12 @@ export function createStreamHandlers(setTurns: SetTurns, assistantId: string): S
           analysisLabel: "思考完成",
           usage: data.usage as Usage | undefined,
           finishReason: typeof data.finish_reason === "string" ? data.finish_reason : undefined,
+          retrievedChunks:
+            typeof data.retrieved_chunks === "number" ? data.retrieved_chunks : undefined,
+          ragTrace:
+            data.rag_trace && typeof data.rag_trace === "object"
+              ? (data.rag_trace as Record<string, unknown>)
+              : undefined,
         }),
       );
     },
@@ -53,6 +66,8 @@ export function appendAssistantResponse(setTurns: SetTurns, data: ChatResponse) 
       provider: data.provider,
       usage: data.usage,
       finishReason: data.finish_reason,
+      retrievedChunks: data.retrieved_chunks,
+      ragTrace: data.rag_trace,
     },
   ]);
 }

@@ -3,7 +3,7 @@ from types import SimpleNamespace
 import pytest
 
 from app.lib.ai.config import ResolvedAIConfig
-from app.lib.ai.stream import normalize_stream_chunk, stream_sse_events
+from app.lib.ai.stream import normalize_stream_chunk, stream_initial_sse_events, stream_sse_events
 
 
 def make_config() -> ResolvedAIConfig:
@@ -85,17 +85,23 @@ def test_normalize_stream_chunk_reads_reasoning_content() -> None:
 
 
 @pytest.mark.asyncio
-async def test_stream_sse_events_outputs_meta_delta_done() -> None:
-    events = [event async for event in stream_sse_events(fake_stream(), make_config())]
+async def test_stream_initial_sse_events_outputs_meta_and_statuses() -> None:
+    events = [event async for event in stream_initial_sse_events(make_config())]
 
     assert events[0] == 'event: meta\ndata: {"model": "stream-model", "provider": "openai-compatible"}\n\n'
-    assert events[1] == 'event: analysis_status\ndata: {"status": "analyzing", "label": "正在分析问题…"}\n\n'
+    assert events[1] == 'event: analysis_status\ndata: {"status": "analyzing", "label": "正在解析问题…"}\n\n'
     assert events[2] == 'event: analysis_status\ndata: {"status": "preparing", "label": "正在整理内容…"}\n\n'
     assert events[3] == 'event: analysis_status\ndata: {"status": "answering", "label": "正在组织回复…"}\n\n'
-    assert events[4] == 'event: analysis_status\ndata: {"status": "complete", "label": "思考完成"}\n\n'
-    assert events[5] == 'event: delta\ndata: {"content": "你"}\n\n'
-    assert events[6] == 'event: delta\ndata: {"content": "好"}\n\n'
-    assert events[7] == (
+
+
+@pytest.mark.asyncio
+async def test_stream_sse_events_outputs_complete_delta_done() -> None:
+    events = [event async for event in stream_sse_events(fake_stream())]
+
+    assert events[0] == 'event: analysis_status\ndata: {"status": "complete", "label": "思考完成"}\n\n'
+    assert events[1] == 'event: delta\ndata: {"content": "你"}\n\n'
+    assert events[2] == 'event: delta\ndata: {"content": "好"}\n\n'
+    assert events[3] == (
         'event: done\ndata: {"finish_reason": "stop", '
         '"usage": {"input_tokens": 1, "output_tokens": 2, "total_tokens": 3}}\n\n'
     )
@@ -114,14 +120,10 @@ async def test_stream_sse_events_suppresses_raw_reasoning_event() -> None:
             usage=None,
         )
 
-    events = [event async for event in stream_sse_events(stream(), make_config())]
+    events = [event async for event in stream_sse_events(stream())]
 
-    assert events[0] == 'event: meta\ndata: {"model": "stream-model", "provider": "openai-compatible"}\n\n'
-    assert events[1] == 'event: analysis_status\ndata: {"status": "analyzing", "label": "正在分析问题…"}\n\n'
-    assert events[2] == 'event: analysis_status\ndata: {"status": "preparing", "label": "正在整理内容…"}\n\n'
-    assert events[3] == 'event: analysis_status\ndata: {"status": "answering", "label": "正在组织回复…"}\n\n'
-    assert events[4] == 'event: analysis_status\ndata: {"status": "complete", "label": "思考完成"}\n\n'
-    assert events[5] == 'event: done\ndata: {"finish_reason": null}\n\n'
+    assert events[0] == 'event: analysis_status\ndata: {"status": "complete", "label": "思考完成"}\n\n'
+    assert events[1] == 'event: done\ndata: {"finish_reason": null}\n\n'
     raw_reasoning_event = "reasoning" + "_delta"
     assert all(raw_reasoning_event not in event for event in events)
     assert all("thinking" not in event for event in events)
@@ -143,14 +145,11 @@ async def test_stream_sse_events_splits_think_tags_across_chunks() -> None:
             usage=None,
         )
 
-    events = [event async for event in stream_sse_events(stream(), make_config())]
+    events = [event async for event in stream_sse_events(stream())]
 
-    assert events[1] == 'event: analysis_status\ndata: {"status": "analyzing", "label": "正在分析问题…"}\n\n'
-    assert events[2] == 'event: analysis_status\ndata: {"status": "preparing", "label": "正在整理内容…"}\n\n'
-    assert events[3] == 'event: analysis_status\ndata: {"status": "answering", "label": "正在组织回复…"}\n\n'
-    assert events[4] == 'event: analysis_status\ndata: {"status": "complete", "label": "思考完成"}\n\n'
-    assert events[5] == 'event: delta\ndata: {"content": "answer"}\n\n'
-    assert events[6] == 'event: done\ndata: {"finish_reason": "stop"}\n\n'
+    assert events[0] == 'event: analysis_status\ndata: {"status": "complete", "label": "思考完成"}\n\n'
+    assert events[1] == 'event: delta\ndata: {"content": "answer"}\n\n'
+    assert events[2] == 'event: done\ndata: {"finish_reason": "stop"}\n\n'
     assert all('"content": "reason"' not in event for event in events)
 
 
@@ -167,7 +166,7 @@ async def test_stream_sse_events_replays_long_answer_as_multiple_deltas_after_co
             usage=None,
         )
 
-    events = [event async for event in stream_sse_events(stream(), make_config())]
+    events = [event async for event in stream_sse_events(stream())]
     complete_index = events.index('event: analysis_status\ndata: {"status": "complete", "label": "思考完成"}\n\n')
     delta_events = [event for event in events if event.startswith("event: delta\n")]
     first_delta_index = events.index(delta_events[0])
@@ -178,3 +177,28 @@ async def test_stream_sse_events_replays_long_answer_as_multiple_deltas_after_co
         'event: delta\ndata: {"content": "ijklmnop"}\n\n',
     ]
     assert "".join(event.split('"content": "')[1].split('"')[0] for event in delta_events) == "abcdefghijklmnop"
+
+
+@pytest.mark.asyncio
+async def test_stream_sse_events_converts_error_after_visible_delta_to_done() -> None:
+    async def stream():
+        yield SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    delta=SimpleNamespace(content="partial answer"),
+                    finish_reason=None,
+                )
+            ],
+            usage=None,
+        )
+        raise RuntimeError("provider broke")
+
+    events = [event async for event in stream_sse_events(stream())]
+
+    assert events[0] == 'event: analysis_status\ndata: {"status": "complete", "label": "思考完成"}\n\n'
+    assert events[1] == 'event: delta\ndata: {"content": "partial "}\n\n'
+    assert events[2] == 'event: delta\ndata: {"content": "answer"}\n\n'
+    assert events[3] == (
+        'event: done\ndata: {"finish_reason": "error", '
+        '"error": {"code": "PROVIDER_ERROR", "message": "AI provider request failed."}}\n\n'
+    )

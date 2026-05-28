@@ -12,5 +12,11 @@ class ChatService:
         return await self.ai_service.chat(request)
 
     async def stream_chat(self, request: ChatRequest) -> AsyncIterator[str]:
-        async for event in self.ai_service.stream_chat(request):
-            yield event
+        stream = self.ai_service.stream_chat(request)
+        try:
+            async for event in stream:
+                yield event
+        finally:
+            aclose = getattr(stream, "aclose", None)
+            if aclose:
+                await aclose()

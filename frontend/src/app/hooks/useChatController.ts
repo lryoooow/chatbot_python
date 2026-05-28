@@ -14,11 +14,14 @@ import type {
   ProviderConfigBody,
 } from "../types";
 
+const CONVERSATION_STORAGE_KEY = "chatbot.conversationId";
+
 type ChatControllerSettings = {
   endpoint: string;
   model: string;
   systemPrompt: string;
   streamEnabled: boolean;
+  useRag: boolean;
   buildProviderConfig: () => ProviderConfigBody;
 };
 
@@ -27,13 +30,26 @@ export function useChatController({
   model,
   systemPrompt,
   streamEnabled,
+  useRag,
   buildProviderConfig,
 }: ChatControllerSettings) {
   const [turns, setTurns] = useState<ChatTurn[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [activeStream, setActiveStream] = useState(false);
+  const [conversationId, setConversationIdState] = useState<string | null>(() =>
+    window.localStorage.getItem(CONVERSATION_STORAGE_KEY),
+  );
   const abortRef = useRef<AbortController | null>(null);
+
+  function setConversationId(nextConversationId: string | null) {
+    setConversationIdState(nextConversationId);
+    if (nextConversationId) {
+      window.localStorage.setItem(CONVERSATION_STORAGE_KEY, nextConversationId);
+      return;
+    }
+    window.localStorage.removeItem(CONVERSATION_STORAGE_KEY);
+  }
 
   async function sendMessage(text: string) {
     const trimmed = text.trim();
@@ -42,16 +58,29 @@ export function useChatController({
     const userTurn: ChatTurn = { id: uid(), role: "user", content: trimmed };
     const assistantId = uid();
     const shouldStream = streamEnabled;
+    const requestMessages = conversationId ? [{ role: "user" as const, content: trimmed }] : toModelHistory(turns, trimmed);
     const body = buildChatRequestBody({
-      messages: toModelHistory(turns, trimmed),
+      messages: requestMessages,
       model,
       systemPrompt,
       stream: shouldStream,
       providerConfig: buildProviderConfig(),
+      conversationId,
+      useRag,
     });
 
     if (shouldStream) {
-      setTurns((prev) => [...prev, userTurn, { id: assistantId, role: "assistant", content: "" }]);
+      setTurns((prev) => [
+        ...prev,
+        userTurn,
+        {
+          id: assistantId,
+          role: "assistant",
+          content: "",
+          analysisStatus: "analyzing",
+          analysisLabel: "正在解析问题…",
+        },
+      ]);
     } else {
       setTurns((prev) => [...prev, userTurn]);
     }
@@ -66,11 +95,12 @@ export function useChatController({
       const res = await postChat(endpoint, body, controller.signal);
 
       if (shouldStream) {
-        await readStreamResponse(res, createStreamHandlers(setTurns, assistantId));
+        await readStreamResponse(res, createStreamHandlers(setTurns, assistantId, setConversationId));
         return;
       }
 
       const data = (await res.json()) as ChatResponse;
+      if (data.conversation_id) setConversationId(data.conversation_id);
       appendAssistantResponse(setTurns, data);
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return;
@@ -98,6 +128,7 @@ export function useChatController({
     abortRef.current?.abort();
     setActiveStream(false);
     setTurns([]);
+    setConversationId(null);
   }
 
   return {
@@ -105,6 +136,7 @@ export function useChatController({
     input,
     loading,
     activeStream,
+    conversationId,
     setInput,
     sendMessage,
     handleSubmit,

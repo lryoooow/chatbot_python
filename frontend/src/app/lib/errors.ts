@@ -9,5 +9,15 @@ export function readErrorMessage(payload: unknown) {
   ) {
     return String(payload.error.message);
   }
+  if (
+    payload &&
+    typeof payload === "object" &&
+    "detail" in payload &&
+    payload.detail &&
+    typeof payload.detail === "object" &&
+    "message" in payload.detail
+  ) {
+    return String(payload.detail.message);
+  }
   return null;
 }

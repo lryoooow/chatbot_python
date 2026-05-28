@@ -1,4 +1,4 @@
-import type { FormEvent, KeyboardEvent, RefObject } from "react";
+import { useRef, type FormEvent, type KeyboardEvent, type RefObject } from "react";
 import { ArrowUp, Loader2 } from "lucide-react";
 
 type ChatComposerProps = {
@@ -20,6 +20,19 @@ export function ChatComposer({
   onSubmit,
   onKeyDown,
 }: ChatComposerProps) {
+  const isComposingRef = useRef(false);
+
+  function handleTextareaKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (
+      isComposingRef.current ||
+      event.nativeEvent.isComposing ||
+      event.keyCode === 229
+    ) {
+      return;
+    }
+    onKeyDown(event);
+  }
+
   return (
     <div className="border-t border-border bg-background">
       <form onSubmit={onSubmit} className="max-w-3xl mx-auto px-6 md:px-10 py-5">
@@ -28,7 +41,13 @@ export function ChatComposer({
             ref={textareaRef}
             value={input}
             onChange={(e) => onInputChange(e.target.value)}
-            onKeyDown={onKeyDown}
+            onCompositionStart={() => {
+              isComposingRef.current = true;
+            }}
+            onCompositionEnd={() => {
+              isComposingRef.current = false;
+            }}
+            onKeyDown={handleTextareaKeyDown}
             placeholder="说点什么…  (Shift + Enter 换行)"
             rows={1}
             disabled={loading}

@@ -37,3 +37,23 @@ export function getConfigEndpoint(chatEndpoint: string) {
     return "http://localhost:3000/api/config";
   }
 }
+
+export function getDocumentsEndpoint(chatEndpoint: string) {
+  try {
+    const url = new URL(chatEndpoint);
+    url.pathname = url.pathname.replace(/\/chat\/?$/, "/documents");
+    return url.toString();
+  } catch {
+    return "http://localhost:3000/api/documents";
+  }
+}
+
+export function getApiBaseEndpoint(chatEndpoint: string) {
+  try {
+    const url = new URL(chatEndpoint);
+    url.pathname = url.pathname.replace(/\/chat\/?$/, "");
+    return url.toString().replace(/\/$/, "");
+  } catch {
+    return "http://localhost:3000/api";
+  }
+}

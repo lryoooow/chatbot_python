@@ -2,22 +2,33 @@ import { useState } from "react";
 import { ChatComposer } from "./components/ChatComposer";
 import { Conversation } from "./components/conversation/Conversation";
 import { AppHeader } from "./components/AppHeader";
+import { AuthPanel } from "./components/auth/AuthPanel";
+import { HistoryPanel } from "./components/history/HistoryPanel";
+import { KnowledgePanel } from "./components/knowledge/KnowledgePanel";
+import { MemoryPanel } from "./components/memory/MemoryPanel";
 import { SettingsPanel } from "./components/settings/SettingsPanel";
 import { useAutoScroll } from "./hooks/useAutoScroll";
 import { useAutosizeTextarea } from "./hooks/useAutosizeTextarea";
+import { useAuth } from "./hooks/useAuth";
 import { useChatController } from "./hooks/useChatController";
 import { useSettings } from "./hooks/useSettings";
 
 export default function App() {
   const settings = useSettings();
+  const auth = useAuth(settings.endpoint);
   const chat = useChatController({
     endpoint: settings.endpoint,
     model: settings.model,
     systemPrompt: settings.systemPrompt,
     streamEnabled: settings.streamEnabled,
+    useRag: settings.useRag,
     buildProviderConfig: settings.buildProviderConfig,
   });
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [knowledgeOpen, setKnowledgeOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [memoryOpen, setMemoryOpen] = useState(false);
+  const [authOpen, setAuthOpen] = useState(false);
   const scrollRef = useAutoScroll<HTMLDivElement>([chat.turns, chat.loading]);
   const textareaRef = useAutosizeTextarea(chat.input);
   const isEmpty = chat.turns.length === 0;
@@ -31,8 +42,48 @@ export default function App() {
         isEmpty={isEmpty}
         loading={chat.loading}
         settingsOpen={settingsOpen}
+        knowledgeOpen={knowledgeOpen}
+        historyOpen={historyOpen}
+        memoryOpen={memoryOpen}
+        authOpen={authOpen}
+        userLabel={auth.user?.email ?? "default user"}
+        authenticated={Boolean(auth.user?.authenticated)}
         onReset={chat.resetConversation}
-        onToggleSettings={() => setSettingsOpen((value) => !value)}
+        onToggleSettings={() => {
+          setSettingsOpen((value) => !value);
+          setKnowledgeOpen(false);
+          setHistoryOpen(false);
+          setMemoryOpen(false);
+          setAuthOpen(false);
+        }}
+        onToggleKnowledge={() => {
+          setKnowledgeOpen((value) => !value);
+          setSettingsOpen(false);
+          setHistoryOpen(false);
+          setMemoryOpen(false);
+          setAuthOpen(false);
+        }}
+        onToggleHistory={() => {
+          setHistoryOpen((value) => !value);
+          setSettingsOpen(false);
+          setKnowledgeOpen(false);
+          setMemoryOpen(false);
+          setAuthOpen(false);
+        }}
+        onToggleMemory={() => {
+          setMemoryOpen((value) => !value);
+          setSettingsOpen(false);
+          setKnowledgeOpen(false);
+          setHistoryOpen(false);
+          setAuthOpen(false);
+        }}
+        onToggleAuth={() => {
+          setAuthOpen((value) => !value);
+          setSettingsOpen(false);
+          setKnowledgeOpen(false);
+          setHistoryOpen(false);
+          setMemoryOpen(false);
+        }}
       />
 
       {settingsOpen && (
@@ -43,6 +94,7 @@ export default function App() {
           model={settings.model}
           systemPrompt={settings.systemPrompt}
           streamEnabled={settings.streamEnabled}
+          useRag={settings.useRag}
           serverConfig={settings.serverConfig}
           configError={settings.configError}
           hasProviderOverride={settings.hasProviderOverride}
@@ -52,7 +104,22 @@ export default function App() {
           onModelChange={settings.setModel}
           onSystemPromptChange={settings.setSystemPrompt}
           onStreamEnabledChange={settings.setStreamEnabled}
+          onUseRagChange={settings.setUseRag}
           onClearSettings={settings.clearSettings}
+        />
+      )}
+
+      {knowledgeOpen && <KnowledgePanel endpoint={settings.endpoint} />}
+      {historyOpen && <HistoryPanel endpoint={settings.endpoint} />}
+      {memoryOpen && <MemoryPanel endpoint={settings.endpoint} />}
+      {authOpen && (
+        <AuthPanel
+          user={auth.user}
+          loading={auth.loading}
+          error={auth.error}
+          onLogin={auth.signIn}
+          onRegister={auth.signUp}
+          onLogout={auth.signOut}
         />
       )}
 

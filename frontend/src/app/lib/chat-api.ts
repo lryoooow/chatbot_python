@@ -5,6 +5,7 @@ export async function postChat(endpoint: string, body: ChatRequestBody, signal: 
   const res = await fetch(endpoint, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    credentials: "include",
     body: JSON.stringify(body),
     signal,
   });
@@ -19,7 +20,7 @@ export async function postChat(endpoint: string, body: ChatRequestBody, signal: 
 }
 
 export async function fetchConfig(configEndpoint: string) {
-  const res = await fetch(configEndpoint);
+  const res = await fetch(configEndpoint, { credentials: "include" });
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
   return (await res.json()) as ConfigResponse;
 }

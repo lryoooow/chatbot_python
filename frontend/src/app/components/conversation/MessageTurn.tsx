@@ -67,6 +67,17 @@ function MessageMeta({ turn }: { turn: ChatTurn }) {
         </span>
       )}
       {turn.finishReason && <span>finish · {turn.finishReason}</span>}
+      {turn.retrievedChunks != null && turn.retrievedChunks > 0 && (
+        <span>参考了 {turn.retrievedChunks} 段文档</span>
+      )}
+      {turn.ragTrace && (
+        <details className="basis-full pt-1 normal-case tracking-normal">
+          <summary className="cursor-pointer">RAG trace</summary>
+          <pre className="mt-1 max-w-[88vw] overflow-x-auto text-[10px] leading-relaxed">
+            {JSON.stringify(turn.ragTrace, null, 2)}
+          </pre>
+        </details>
+      )}
     </div>
   );
 }

@@ -27,6 +27,9 @@ class ChatRequest(BaseModel):
     system_prompt: str | None = None
     stream: bool = False
     provider_config: ProviderConfig | None = None
+    conversation_id: str | None = None
+    use_memory: bool = True
+    use_rag: bool = False
 
 
 class Usage(BaseModel):
@@ -41,3 +44,8 @@ class ChatResponse(BaseModel):
     provider: str
     usage: Usage | None = None
     finish_reason: str | None = None
+    conversation_id: str | None = None
+    user_message_id: str | None = None
+    assistant_message_id: str | None = None
+    retrieved_chunks: int = 0
+    rag_trace: dict | None = None

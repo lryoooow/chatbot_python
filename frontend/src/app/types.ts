@@ -21,6 +21,8 @@ export type ChatTurn = ChatMessage & {
   provider?: string;
   usage?: Usage;
   finishReason?: string;
+  retrievedChunks?: number;
+  ragTrace?: Record<string, unknown> | null;
   error?: boolean;
 };
 
@@ -30,6 +32,11 @@ export type ChatResponse = {
   provider: string;
   usage?: Usage;
   finish_reason?: string;
+  conversation_id?: string;
+  user_message_id?: string;
+  assistant_message_id?: string;
+  retrieved_chunks?: number;
+  rag_trace?: Record<string, unknown> | null;
 };
 
 export type ConfigResponse = {
@@ -51,6 +58,7 @@ export type StoredConfig = {
   model?: string;
   systemPrompt?: string;
   streamEnabled?: boolean;
+  useRag?: boolean;
 };
 
 export type ProviderConfigBody = {
@@ -65,4 +73,66 @@ export type ChatRequestBody = {
   model?: string;
   system_prompt?: string;
   provider_config?: ProviderConfigBody;
+  conversation_id?: string;
+  use_memory?: boolean;
+  use_rag?: boolean;
+};
+
+export type KnowledgeDocument = {
+  id: string;
+  title: string;
+  source_url?: string | null;
+  doc_type?: string | null;
+  metadata?: Record<string, unknown> | null;
+  chunk_count: number;
+  latest_job_id?: string | null;
+  latest_job_status?: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type DocumentJob = {
+  id: string;
+  status: string;
+  progress: number;
+  filename?: string | null;
+  doc_type?: string | null;
+  file_size?: number | null;
+  text_length?: number | null;
+  chunk_count?: number | null;
+  embedding_batches?: number | null;
+  document_id?: string | null;
+  error_code?: string | null;
+  error_message?: string | null;
+  stage_timings?: Record<string, unknown> | null;
+  metadata?: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type DocumentChunk = {
+  id: string;
+  document_id: string;
+  chunk_index: number;
+  content: string;
+  char_count: number;
+  token_count?: number | null;
+  metadata?: Record<string, unknown> | null;
+  created_at: string;
+};
+
+export type DocumentSearchResult = {
+  id: string;
+  document_id: string;
+  content_preview: string;
+  vector_score?: number | null;
+  text_score?: number | null;
+  rrf_score?: number | null;
+  rerank_score?: number | null;
+  selected_by_mmr: boolean;
+};
+
+export type DocumentSearchResponse = {
+  results: DocumentSearchResult[];
+  trace: Record<string, unknown>;
 };

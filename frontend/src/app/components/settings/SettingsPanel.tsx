@@ -10,6 +10,7 @@ type SettingsPanelProps = {
   model: string;
   systemPrompt: string;
   streamEnabled: boolean;
+  useRag: boolean;
   serverConfig: ConfigResponse | null;
   configError: string;
   hasProviderOverride: boolean;
@@ -19,6 +20,7 @@ type SettingsPanelProps = {
   onModelChange: (value: string) => void;
   onSystemPromptChange: (value: string) => void;
   onStreamEnabledChange: (value: boolean) => void;
+  onUseRagChange: (value: boolean) => void;
   onClearSettings: () => void;
 };
 
@@ -29,6 +31,7 @@ export function SettingsPanel({
   model,
   systemPrompt,
   streamEnabled,
+  useRag,
   serverConfig,
   configError,
   hasProviderOverride,
@@ -38,6 +41,7 @@ export function SettingsPanel({
   onModelChange,
   onSystemPromptChange,
   onStreamEnabledChange,
+  onUseRagChange,
   onClearSettings,
 }: SettingsPanelProps) {
   return (
@@ -100,6 +104,18 @@ export function SettingsPanel({
               className="size-3.5 accent-foreground"
             />
             stream response
+          </label>
+          <label
+            className="inline-flex items-center gap-2 text-xs text-muted-foreground"
+            style={{ fontFamily: "'JetBrains Mono', monospace" }}
+          >
+            <input
+              type="checkbox"
+              checked={useRag}
+              onChange={(e) => onUseRagChange(e.target.checked)}
+              className="size-3.5 accent-foreground"
+            />
+            use knowledge base
           </label>
           <ConfigStatus
             config={serverConfig}

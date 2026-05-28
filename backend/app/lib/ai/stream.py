@@ -8,11 +8,10 @@ from app.lib.ai.reasoning import ThinkTagParser
 from app.schemas.chat import Usage
 
 REASONING_FIELDS = ("reasoning_content", "reasoning", "thinking", "thought")
-ANALYSIS_STATUS_PAUSE_SECONDS = 0.12
-ANSWER_DELTA_PAUSE_SECONDS = 0.025
+ANALYSIS_STATUS_PAUSE_SECONDS = 0.42
 ANSWER_DELTA_MAX_CHARS = 8
 ANALYSIS_STATUS_LABELS = {
-    "analyzing": "正在分析问题…",
+    "analyzing": "正在解析问题…",
     "preparing": "正在整理内容…",
     "answering": "正在组织回复…",
     "complete": "思考完成",
@@ -33,8 +32,23 @@ def analysis_status_event(status: str) -> str:
     )
 
 
-def iter_answer_delta_parts(content_buffer: list[str]) -> Iterator[str]:
-    for value in content_buffer:
+async def stream_initial_sse_events(
+    config: ResolvedAIConfig,
+    metadata: dict[str, Any] | None = None,
+) -> AsyncIterator[str]:
+    payload = {"model": config.model, "provider": config.provider}
+    if metadata:
+        payload.update(metadata)
+    yield sse_event("meta", payload)
+    yield analysis_status_event("analyzing")
+    await asyncio.sleep(ANALYSIS_STATUS_PAUSE_SECONDS)
+    yield analysis_status_event("preparing")
+    await asyncio.sleep(ANALYSIS_STATUS_PAUSE_SECONDS)
+    yield analysis_status_event("answering")
+
+
+def iter_answer_delta_parts(content_parts: list[str]) -> Iterator[str]:
+    for value in content_parts:
         if not value:
             continue
         for cursor in range(0, len(value), ANSWER_DELTA_MAX_CHARS):
@@ -74,18 +88,12 @@ def normalize_stream_chunk(chunk: Any) -> dict[str, Any]:
     }
 
 
-async def stream_sse_events(stream: AsyncIterator[Any], config: ResolvedAIConfig) -> AsyncIterator[str]:
-    yield sse_event("meta", {"model": config.model, "provider": config.provider})
-    yield analysis_status_event("analyzing")
-    await asyncio.sleep(ANALYSIS_STATUS_PAUSE_SECONDS)
-    yield analysis_status_event("preparing")
-    await asyncio.sleep(ANALYSIS_STATUS_PAUSE_SECONDS)
-    yield analysis_status_event("answering")
-
+async def stream_sse_events(stream: AsyncIterator[Any]) -> AsyncIterator[str]:
     finish_reason: str | None = None
     usage: dict[str, int | None] | None = None
     think_parser = ThinkTagParser()
-    content_buffer: list[str] = []
+    complete_sent = False
+    visible_delta_sent = False
 
     try:
         async for chunk in stream:
@@ -96,7 +104,12 @@ async def stream_sse_events(stream: AsyncIterator[Any], config: ResolvedAIConfig
                 for channel, value in think_parser.feed(content):
                     if channel == "reasoning":
                         continue
-                    content_buffer.append(value)
+                    for part in iter_answer_delta_parts([value]):
+                        if not complete_sent:
+                            yield analysis_status_event("complete")
+                            complete_sent = True
+                        yield sse_event("delta", {"content": part})
+                        visible_delta_sent = True
 
             if normalized["finish_reason"]:
                 finish_reason = normalized["finish_reason"]
@@ -104,23 +117,32 @@ async def stream_sse_events(stream: AsyncIterator[Any], config: ResolvedAIConfig
                 usage = normalized["usage"]
     except Exception as exc:
         error = exc if isinstance(exc, AIError) else map_provider_error(exc)
+        if visible_delta_sent:
+            yield sse_event(
+                "done",
+                {
+                    "finish_reason": "error",
+                    "error": {"code": error.code, "message": error.message},
+                },
+            )
+            return
         yield sse_event("error", {"code": error.code, "message": error.message})
         return
 
     for channel, value in think_parser.flush():
         if channel == "reasoning":
             continue
-        content_buffer.append(value)
+        for part in iter_answer_delta_parts([value]):
+            if not complete_sent:
+                yield analysis_status_event("complete")
+                complete_sent = True
+            yield sse_event("delta", {"content": part})
+            visible_delta_sent = True
+
+    if not complete_sent:
+        yield analysis_status_event("complete")
 
     done_payload: dict[str, Any] = {"finish_reason": finish_reason}
     if usage:
         done_payload["usage"] = usage
-    yield analysis_status_event("complete")
-    answer_parts = list(iter_answer_delta_parts(content_buffer))
-    if answer_parts:
-        await asyncio.sleep(ANALYSIS_STATUS_PAUSE_SECONDS)
-    for index, value in enumerate(answer_parts):
-        yield sse_event("delta", {"content": value})
-        if index < len(answer_parts) - 1:
-            await asyncio.sleep(ANSWER_DELTA_PAUSE_SECONDS)
     yield sse_event("done", done_payload)

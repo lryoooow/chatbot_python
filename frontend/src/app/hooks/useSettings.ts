@@ -18,12 +18,13 @@ export function useSettings() {
   const [model, setModel] = useState(stored.model ?? "");
   const [systemPrompt, setSystemPrompt] = useState(stored.systemPrompt ?? DEFAULT_SYSTEM_PROMPT);
   const [streamEnabled, setStreamEnabled] = useState(stored.streamEnabled ?? true);
+  const [useRag, setUseRag] = useState(stored.useRag ?? false);
   const [serverConfig, setServerConfig] = useState<ConfigResponse | null>(null);
   const [configError, setConfigError] = useState("");
 
   useEffect(() => {
-    saveConfig({ endpoint, baseURL, apiKey, model, systemPrompt, streamEnabled });
-  }, [endpoint, baseURL, apiKey, model, systemPrompt, streamEnabled]);
+    saveConfig({ endpoint, baseURL, apiKey, model, systemPrompt, streamEnabled, useRag });
+  }, [endpoint, baseURL, apiKey, model, systemPrompt, streamEnabled, useRag]);
 
   useEffect(() => {
     let cancelled = false;
@@ -55,6 +56,7 @@ export function useSettings() {
     setModel("");
     setSystemPrompt(DEFAULT_SYSTEM_PROMPT);
     setStreamEnabled(true);
+    setUseRag(false);
   }
 
   function buildProviderConfig(): ProviderConfigBody {
@@ -72,6 +74,7 @@ export function useSettings() {
     model,
     systemPrompt,
     streamEnabled,
+    useRag,
     serverConfig,
     configError,
     hasProviderOverride: Boolean(baseURL.trim() || apiKey.trim() || model.trim()),
@@ -81,6 +84,7 @@ export function useSettings() {
     setModel,
     setSystemPrompt,
     setStreamEnabled,
+    setUseRag,
     clearSettings,
     buildProviderConfig,
   };

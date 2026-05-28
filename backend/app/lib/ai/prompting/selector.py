@@ -4,7 +4,7 @@ from app.schemas.chat import ChatMessage
 DEFAULT_PROMPT_PROFILE = "chatbot_core_v1"
 
 PROMPT_PROFILES: dict[str, tuple[str, ...]] = {
-    DEFAULT_PROMPT_PROFILE: ("core_identity_v1", "context_priority_v1"),
+    DEFAULT_PROMPT_PROFILE: ("core_identity_v1", "security_boundary_v1", "context_priority_v1"),
 }
 
 PROMPT_MODULES: dict[str, PromptModule] = {
@@ -12,6 +12,11 @@ PROMPT_MODULES: dict[str, PromptModule] = {
     "context_priority_v1": PromptModule(
         "context_priority_v1",
         "context_priority_v1",
+        required=True,
+    ),
+    "security_boundary_v1": PromptModule(
+        "security_boundary_v1",
+        "security_boundary_v1",
         required=True,
     ),
     "output_format_v1": PromptModule("output_format_v1", "output_format_v1"),
